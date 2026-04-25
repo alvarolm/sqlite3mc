@@ -1,0 +1,170 @@
+# sqlite3mc
+
+> [!CAUTION]
+> not reviewed, use a your own risk, built mostly with Claude Code
+
+A drop-in replacement for [`mattn/go-sqlite3`](https://github.com/mattn/go-sqlite3) that ships
+[SQLite3MultipleCiphers](https://github.com/utelle/SQLite3MultipleCiphers) instead of vanilla
+SQLite — gives you `PRAGMA key='...'` page-level encryption (ChaCha20-Poly1305 by default)
+without changing any application code beyond the driver registration.
+
+The Go bindings, exported types, and CFLAGS layout are mattn's. The C amalgamation under
+`sqlite3/csrc/` is SQLite3MC's. The only Go-level change is one extra hook (`PreConnectHook`)
+on `SQLiteDriver` so a key can be installed before SQLite touches page 1 of the database file.
+
+## Versions
+
+Tracked in [`VERSION`](VERSION):
+
+| Component             | Pinned to     |
+|-----------------------|---------------|
+| local hybrid          | `0.1.0`       |
+| `mattn/go-sqlite3`    | `v1.14.24`    |
+| SQLite3MultipleCiphers| `v2.3.3`      |
+| underlying SQLite     | `3.53.0`      |
+
+## Install
+
+The Go module lives in the `sqlite3/` subfolder so the import path matches the package
+name (`package sqlite3`):
+
+```bash
+go get github.com/alvarolm/sqlite3mc/sqlite3
+```
+
+Or, if you already import `github.com/mattn/go-sqlite3` and don't want to rewrite imports,
+keep the imports and add a `replace` in your `go.mod`:
+
+```go
+replace github.com/mattn/go-sqlite3 => github.com/alvarolm/sqlite3mc/sqlite3 v0.1.0
+// or, for a sibling clone:
+// replace github.com/mattn/go-sqlite3 => ../sqlite3mc/sqlite3
+```
+
+## Usage
+
+```go
+import (
+    "database/sql"
+    "fmt"
+    sqlite3 "github.com/alvarolm/sqlite3mc/sqlite3"
+)
+
+func init() {
+    sql.Register("sqlite3-enc", &sqlite3.SQLiteDriver{
+        // PreConnectHook runs BEFORE mattn issues its internal PRAGMAs
+        // (busy_timeout, locking_mode, journal_mode, ...) — the only safe
+        // spot to install the codec key, since locking_mode triggers a
+        // page-1 read that fails on an encrypted file with no key set.
+        PreConnectHook: func(c *sqlite3.SQLiteConn) error {
+            _, err := c.Exec(fmt.Sprintf("PRAGMA key = '%s'", "secret"), nil)
+            return err
+        },
+    })
+}
+
+func main() {
+    db, _ := sql.Open("sqlite3-enc", "file:secret.db")
+    defer db.Close()
+    db.Exec(`CREATE TABLE t(x INTEGER)`)
+    // ...
+}
+```
+
+The active cipher is whatever SQLite3MC's compile-time default is — currently
+ChaCha20-Poly1305 (256-bit key, per-page 128-bit nonce + Poly1305 tag, PBKDF2-SHA1 64007
+iterations). To pick a different cipher (e.g. AEGIS-256X4 — 256-bit key & nonce, AES-NI
+fast path), set it via the **DSN URI** so SQLite3MC reads it before any page is touched:
+
+```go
+dsn := "file:secret.db?cipher=aegis&algorithm=aegis-256x4"
+db, _ := sql.Open("sqlite3-enc", dsn)
+```
+
+URI params are listed in SQLite3MC's
+[Configuration docs](https://utelle.github.io/SQLite3MultipleCiphers/docs/configuration/);
+each cipher's per-cipher knobs live under the same name (`legacy`, `algorithm`, `kdf_iter`,
+…). `PRAGMA cipher` / `SELECT sqlite3mc_config('cipher','param',value)` also work but
+must run **before** any read of page 1, which is awkward inside `PreConnectHook` for an
+existing encrypted file — the URI form sidesteps it.
+
+To pass a raw key instead of a passphrase, prefix with `raw:` or use SQLCipher's hex form:
+
+```sql
+PRAGMA key = "raw:0123456789abcdef...";   -- 32 hex chars per byte
+PRAGMA key = "x'0123456789abcdef...'";    -- SQLCipher-compatible
+```
+
+A runnable version of this is in [`examples/encrypted/`](examples/encrypted/main.go) —
+`cd examples/encrypted && go run .`. It writes a row through SQLite3MC, dumps the
+on-disk bytes to show they don't contain the plaintext, then spawns a sibling module
+[`examples/encrypted/decrypt/`](examples/encrypted/decrypt/main.go) that reads the
+raw file and recovers the plaintext using
+[`github.com/aegis-aead/go-libaegis`](https://github.com/aegis-aead/go-libaegis) +
+`golang.org/x/crypto/argon2` — proving the data really is on disk, just opaque
+without the key. The two binaries live in separate Go modules because both
+SQLite3MC's bundled `csrc/aegis/` and go-libaegis's bundled libaegis would
+otherwise produce duplicate-symbol link errors in a single binary.
+
+## Updating versions
+
+[`scripts/update.sh`](scripts/update.sh) re-pulls both upstreams at chosen tags, copies
+the right files into the repo root, applies the local sqlite3.go patch, and stamps a new
+`VERSION`. Defaults are read from `VERSION`, so a no-arg run rebuilds the current pin.
+
+```bash
+# bump SQLite3MC only
+scripts/update.sh --mc v2.3.4 --version 0.2.0
+
+# bump mattn only
+scripts/update.sh --mattn v1.14.25 --version 0.2.0
+
+# bump both, custom local sources
+scripts/update.sh \
+    --mattn v1.14.25 --mattn-repo /path/to/local/go-sqlite3 \
+    --mc v2.3.4      --mc-repo    /path/to/local/SQLite3MultipleCiphers \
+    --version 0.2.0
+```
+
+The script smoke-builds (`go build ./...`) before declaring success and prints the
+`git add / commit / tag` line for the new version.
+
+After editing `sqlite3.go` directly (e.g. to add another hook),
+[`scripts/regen-patch.sh`](scripts/regen-patch.sh) regenerates
+`patches/sqlite3.go.patch` against the pinned mattn version so the change survives
+future `update.sh` runs.
+
+## Repo layout
+
+```
+sqlite3mc/
+├── README.md
+├── LICENSE                       # MIT, Yasuhiro Matsumoto et al. (mattn)
+├── VERSION                       # local + upstream version pins
+├── patches/sqlite3.go.patch      # local cgo CFLAGS + PreConnectHook
+├── scripts/
+│   ├── update.sh                 # rebuild from chosen upstream tags
+│   └── regen-patch.sh            # rebuild patches/sqlite3.go.patch after editing
+├── examples/
+│   └── encrypted/                # standalone module — `go run .` to try it
+└── sqlite3/                      # Go module — module github.com/alvarolm/sqlite3mc/sqlite3
+    ├── *.go                      # mattn bindings (only sqlite3.go is patched)
+    ├── sqlite3-binding.{c,h}     # SQLite3MC amalgamation entry (renamed from sqlite3mc.{c,h})
+    ├── sqlite3.h, sqlite3ext.h   # SQLite3MC headers
+    └── csrc/                     # SQLite3MC C sources (ciphers, KDF, patched SQLite, ...)
+```
+
+## License
+
+This project bundles MIT-licensed code from two upstreams. Both retain their copyrights
+and licenses:
+
+- [`LICENSE`](LICENSE) — MIT, Yasuhiro Matsumoto et al. (mattn/go-sqlite3)
+- SQLite3MultipleCiphers — MIT, Ulrich Telle. License header is in
+  `sqlite3/sqlite3-binding.c` and the SQLite3MC source files under `sqlite3/csrc/`.
+
+The local glue (the `PreConnectHook` patch and the build scripts) is also MIT.
+
+## Credits
+
+Built with the aid of [Claude Code](https://www.anthropic.com/claude-code).

@@ -1,0 +1,5 @@
+# compiled example binaries
+examples/*/encrypted
+examples/*/example
+examples/encrypted/decrypt/decrypt
+*.exe
