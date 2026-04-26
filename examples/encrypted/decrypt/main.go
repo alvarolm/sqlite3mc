@@ -15,7 +15,7 @@
 // Decrypt recipe per page:
 //  1. masterKey = Argon2id(passphrase, salt, t=2, m=19MiB, p=1, len=32)   (cipher_aegis.c:275)
 //  2. otk[64]   = aegis256x4_stream(masterKey, perPageNonce)               (cipher_aegis.c:299, AegisGenOtk)
-//                 then patch otk[60..64] with bigendian(pageNumber)        (cipher_aegis.c:304)
+//     then patch otk[60..64] with bigendian(pageNumber)        (cipher_aegis.c:304)
 //  3. plaintext = aegis256x4.Open(key=otk[0:32], nonce=otk[32:64], ciphertext+tag, ad=nil)
 package main
 
