@@ -448,13 +448,21 @@ const (
 
 // SQLiteDriver implements driver.Driver.
 type SQLiteDriver struct {
-	Extensions []string
+	Extensions  []string
+	ConnectHook func(*SQLiteConn) error
 	// PreConnectHook runs immediately after sqlite3_open_v2 succeeds and BEFORE
-	// any internal PRAGMA (busy_timeout, locking_mode, journal_mode, ...). It
-	// is the only safe place to install an encryption codec key: anything later
-	// has already triggered a page-1 read that fails on an encrypted file.
+	// any internal PRAGMA (busy_timeout, locking_mode, journal_mode, ...). It is
+	// the only safe place to install an encryption codec key: anything later has
+	// already triggered a page-1 read that fails on an encrypted file.
+	//
+	// The *SQLiteConn passed in has only its underlying sqlite3* handle set;
+	// URI-derived state (loc, txlock, statement cache, function/aggregator
+	// registries) has NOT been initialized yet. Use it for codec/key setup
+	// only — PRAGMA key, PRAGMA cipher, sqlite3mc_config(), and similar
+	// statement-less operations are safe via Exec. Avoid Query/Prepare of
+	// typed columns and avoid registering Go functions or aggregators here:
+	// loc is nil (timestamps fall back to UTC) and statement caching is off.
 	PreConnectHook func(*SQLiteConn) error
-	ConnectHook    func(*SQLiteConn) error
 }
 
 // SQLiteConn implements driver.Conn.
@@ -1592,7 +1600,7 @@ func (d *SQLiteDriver) Open(dsn string) (driver.Conn, error) {
 	if d.PreConnectHook != nil {
 		preConn := &SQLiteConn{db: db}
 		if err := d.PreConnectHook(preConn); err != nil {
-			C.sqlite3_close_v2(db)
+			_ = preConn.Close()
 			return nil, err
 		}
 	}

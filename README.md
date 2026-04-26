@@ -23,6 +23,11 @@ Tracked in [`VERSION`](VERSION):
 | SQLite3MultipleCiphers| `v2.3.3`      |
 | underlying SQLite     | `3.53.0`      |
 
+mattn `v1.14.42` was originally cut against SQLite `3.51.3`, but every C symbol
+its bindings call is unchanged in `3.53.0`, so the skew is benign — the
+bindings link and run cleanly against the SQLite amalgamation that SQLite3MC
+ships.
+
 ## Install
 
 The Go module lives in the `sqlite3/` subfolder so the import path matches the package
@@ -40,6 +45,18 @@ replace github.com/mattn/go-sqlite3 => github.com/alvarolm/sqlite3mc/sqlite3 v0.
 // or, for a sibling clone:
 // replace github.com/mattn/go-sqlite3 => ../sqlite3mc/sqlite3
 ```
+
+When `replace`-ing in, prefer **keyed** struct literals for `SQLiteDriver`:
+
+```go
+&sqlite3.SQLiteDriver{ConnectHook: myHook}      // safe across upstream bumps
+&sqlite3.SQLiteDriver{nil, myHook}              // brittle — positional, vet warns
+```
+
+This fork preserves mattn's positional layout (`Extensions, ConnectHook`) and
+appends `PreConnectHook` after them, so existing positional literals still
+mean what they did upstream — but new fields landing in either upstream could
+shift positions again. Keyed literals never break.
 
 ## Usage
 

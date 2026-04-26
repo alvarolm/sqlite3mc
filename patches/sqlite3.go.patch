@@ -24,23 +24,27 @@
  #cgo openbsd CFLAGS: -I/usr/local/include
  #cgo openbsd LDFLAGS: -L/usr/local/lib
  #ifndef USE_LIBSQLITE3
-@@ -355,8 +364,13 @@
- 
- // SQLiteDriver implements driver.Driver.
+@@ -441,6 +450,19 @@
  type SQLiteDriver struct {
--	Extensions  []string
--	ConnectHook func(*SQLiteConn) error
-+	Extensions []string
+ 	Extensions  []string
+ 	ConnectHook func(*SQLiteConn) error
 +	// PreConnectHook runs immediately after sqlite3_open_v2 succeeds and BEFORE
-+	// any internal PRAGMA (busy_timeout, locking_mode, journal_mode, ...). It
-+	// is the only safe place to install an encryption codec key: anything later
-+	// has already triggered a page-1 read that fails on an encrypted file.
++	// any internal PRAGMA (busy_timeout, locking_mode, journal_mode, ...). It is
++	// the only safe place to install an encryption codec key: anything later has
++	// already triggered a page-1 read that fails on an encrypted file.
++	//
++	// The *SQLiteConn passed in has only its underlying sqlite3* handle set;
++	// URI-derived state (loc, txlock, statement cache, function/aggregator
++	// registries) has NOT been initialized yet. Use it for codec/key setup
++	// only — PRAGMA key, PRAGMA cipher, sqlite3mc_config(), and similar
++	// statement-less operations are safe via Exec. Avoid Query/Prepare of
++	// typed columns and avoid registering Go functions or aggregators here:
++	// loc is nil (timestamps fall back to UTC) and statement caching is off.
 +	PreConnectHook func(*SQLiteConn) error
-+	ConnectHook    func(*SQLiteConn) error
  }
  
  // SQLiteConn implements driver.Conn.
-@@ -1476,6 +1490,17 @@
+@@ -1572,6 +1594,17 @@
  		return nil, errors.New("sqlite succeeded without returning a database")
  	}
  
@@ -50,7 +54,7 @@
 +	if d.PreConnectHook != nil {
 +		preConn := &SQLiteConn{db: db}
 +		if err := d.PreConnectHook(preConn); err != nil {
-+			C.sqlite3_close_v2(db)
++			_ = preConn.Close()
 +			return nil, err
 +		}
 +	}
