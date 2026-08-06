@@ -3,7 +3,7 @@
 ** Purpose:     Implementation of cipher SQLCipher (version 1 to 4)
 ** Author:      Ulrich Telle
 ** Created:     2020-02-02
-** Copyright:   (c) 2006-2024 Ulrich Telle
+** Copyright:   (c) 2006-2026 Ulrich Telle
 ** License:     MIT
 */
 
@@ -140,7 +140,7 @@ AllocateSQLCipherCipher(sqlite3* db)
     sqlCipherCipher->m_kdfAlgorithm = sqlite3mcGetCipherParameter(cipherParams, "kdf_algorithm");
     sqlCipherCipher->m_hmacAlgorithm = sqlite3mcGetCipherParameter(cipherParams, "hmac_algorithm");
     sqlCipherCipher->m_hmacAlgorithmCompat = sqlite3mcGetCipherParameter(cipherParams, "hmac_algorithm_compat");
-    if (sqlCipherCipher->m_legacy >= SQLCIPHER_VERSION_4)
+    if (sqlCipherCipher->m_legacy == 0 || sqlCipherCipher->m_legacy >= SQLCIPHER_VERSION_4)
     {
       sqlCipherCipher->m_plaintextHeaderSize = sqlite3mcGetCipherParameter(cipherParams, "plaintext_header_size");
     }
@@ -244,6 +244,11 @@ GenerateKeySQLCipherCipher(void* cipher, char* userPassword, int passwordLength,
   SQLCipherCipher* sqlCipherCipher = (SQLCipherCipher*) cipher;
 
   int keyOnly = 1;
+  if (rekey == 2)
+  {
+    /* (rekey == 2) means database is in WAL mode, thus don't change the cipher salt */
+    rekey = (cipherSalt != NULL) ? 0 : 1;
+  }
   if (rekey || cipherSalt == NULL)
   {
     chacha20_rng(sqlCipherCipher->m_salt, SALTLENGTH_SQLCIPHER);
@@ -363,9 +368,12 @@ EncryptPageSQLCipherCipher(void* cipher, int page, unsigned char* data, int len,
     if (plaintextHeaderSize > 0)
     {
       usePlaintextHeader = 1;
-      if (sqlCipherCipher->m_legacy >= SQLCIPHER_VERSION_4)
+      if (sqlCipherCipher->m_legacy == 0 || sqlCipherCipher->m_legacy >= SQLCIPHER_VERSION_4)
       {
-        offset = plaintextHeaderSize;
+        if (plaintextHeaderSize > offset)
+        {
+          offset = plaintextHeaderSize;
+        }
       }
     }
   }
@@ -446,9 +454,12 @@ DecryptPageSQLCipherCipher(void* cipher, int page, unsigned char* data, int len,
     if (plaintextHeaderSize > 0)
     {
       usePlaintextHeader = 1;
-      if (sqlCipherCipher->m_legacy >= SQLCIPHER_VERSION_4)
+      if (sqlCipherCipher->m_legacy == 0 || sqlCipherCipher->m_legacy >= SQLCIPHER_VERSION_4)
       {
-        offset = plaintextHeaderSize;
+        if (plaintextHeaderSize > offset)
+        {
+          offset = plaintextHeaderSize;
+        }
       }
     }
   }

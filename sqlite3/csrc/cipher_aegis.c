@@ -3,7 +3,7 @@
 ** Purpose:     Implementation of cipher AEGIS
 ** Author:      Ulrich Telle
 ** Created:     2024-12-10
-** Copyright:   (c) 2024-2024 Ulrich Telle
+** Copyright:   (c) 2024-2026 Ulrich Telle
 ** License:     MIT
 */
 
@@ -254,6 +254,11 @@ GenerateKeyAegisCipher(void* cipher, char* userPassword, int passwordLength, int
   AegisCipher* aegisCipher = (AegisCipher*) cipher;
 
   int keyOnly = 1;
+  if (rekey == 2)
+  {
+    /* (rekey == 2) means database is in WAL mode, thus don't change the cipher salt */
+    rekey = (cipherSalt != NULL) ? 0 : 1;
+  }
   if (rekey || cipherSalt == NULL)
   {
     chacha20_rng(aegisCipher->m_salt, SALTLENGTH_AEGIS);
@@ -378,6 +383,9 @@ EncryptPageAegisCipher(void* cipher, int page, unsigned char* data, int len, int
     }
   }
 
+  /* Zero out otk array */
+  sqlite3mcSecureZeroMemory(otk, OTK_LEN_MAX_AEGIS);
+
   return rc;
 }
 
@@ -477,6 +485,9 @@ DecryptPageAegisCipher(void* cipher, int page, unsigned char* data, int len, int
       memcpy(data, SQLITE_FILE_HEADER, 16);
     }
   }
+
+  /* Zero out otk array */
+  sqlite3mcSecureZeroMemory(otk, OTK_LEN_MAX_AEGIS);
 
   return rc;
 }

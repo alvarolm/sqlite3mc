@@ -3,7 +3,7 @@
 ** Purpose:     Implementation of cipher ChaCha20 - Poly1305
 ** Author:      Ulrich Telle
 ** Created:     2020-02-02
-** Copyright:   (c) 2006-2024 Ulrich Telle
+** Copyright:   (c) 2006-2026 Ulrich Telle
 ** License:     MIT
 */
 
@@ -47,6 +47,7 @@ SQLITE_PRIVATE CipherParams mcChaCha20Params[] =
 #define PAGE_NONCE_LEN_CHACHA20  16
 #define PAGE_TAG_LEN_CHACHA20    16
 #define PAGE_RESERVED_CHACHA20   (PAGE_NONCE_LEN_CHACHA20 + PAGE_TAG_LEN_CHACHA20)
+#define OTK_LEN_CHACHA20         64
 
 typedef struct _chacha20Cipher
 {
@@ -149,6 +150,11 @@ GenerateKeyChaCha20Cipher(void* cipher, char* userPassword, int passwordLength, 
   ChaCha20Cipher* chacha20Cipher = (ChaCha20Cipher*) cipher;
 
   int keyOnly = 1;
+  if (rekey == 2)
+  {
+    /* (rekey == 2) means database is in WAL mode, thus don't change the cipher salt */
+    rekey = (cipherSalt != NULL) ? 0 : 1;
+  }
   if (rekey || cipherSalt == NULL)
   {
     chacha20_rng(chacha20Cipher->m_salt, SALTLENGTH_CHACHA20);
@@ -188,7 +194,7 @@ EncryptPageChaCha20Cipher(void* cipher, int page, unsigned char* data, int len, 
   int usePlaintextHeader = 0;
 
   /* Generate one-time keys */
-  uint8_t otk[64];
+  uint8_t otk[OTK_LEN_CHACHA20];
   uint32_t counter;
   int offset = 0;
 
@@ -217,10 +223,10 @@ EncryptPageChaCha20Cipher(void* cipher, int page, unsigned char* data, int len, 
   if (nReserved > 0)
   {
     /* Encrypt and authenticate */
-    memset(otk, 0, 64);
+    memset(otk, 0, OTK_LEN_CHACHA20);
     chacha20_rng(data + n, PAGE_NONCE_LEN_CHACHA20);
     counter = LOAD32_LE(data + n + PAGE_NONCE_LEN_CHACHA20 - 4) ^ page;
-    chacha20_xor(otk, 64, chacha20Cipher->m_key, data + n, counter);
+    chacha20_xor(otk, OTK_LEN_CHACHA20, chacha20Cipher->m_key, data + n, counter);
 
     chacha20_xor(data + offset, n - offset, otk + 32, data + n, counter + 1);
     if (page == 1 && usePlaintextHeader == 0)
@@ -233,10 +239,10 @@ EncryptPageChaCha20Cipher(void* cipher, int page, unsigned char* data, int len, 
   {
     /* Encrypt only */
     uint8_t nonce[PAGE_NONCE_LEN_CHACHA20];
-    memset(otk, 0, 64);
+    memset(otk, 0, OTK_LEN_CHACHA20);
     sqlite3mcGenerateInitialVector(page, nonce);
     counter = LOAD32_LE(&nonce[PAGE_NONCE_LEN_CHACHA20 - 4]) ^ page;
-    chacha20_xor(otk, 64, chacha20Cipher->m_key, nonce, counter);
+    chacha20_xor(otk, OTK_LEN_CHACHA20, chacha20Cipher->m_key, nonce, counter);
 
     /* Encrypt */
     chacha20_xor(data + offset, n - offset, otk + 32, nonce, counter + 1);
@@ -245,6 +251,9 @@ EncryptPageChaCha20Cipher(void* cipher, int page, unsigned char* data, int len, 
       memcpy(data, chacha20Cipher->m_salt, SALTLENGTH_CHACHA20);
     }
   }
+
+  /* Zero out otk array */
+  sqlite3mcSecureZeroMemory(otk, OTK_LEN_CHACHA20);
 
   return rc;
 }
@@ -273,7 +282,7 @@ DecryptPageChaCha20Cipher(void* cipher, int page, unsigned char* data, int len, 
   int usePlaintextHeader = 0;
 
   /* Generate one-time keys */
-  uint8_t otk[64];
+  uint8_t otk[OTK_LEN_CHACHA20];
   uint32_t counter;
   uint8_t tag[16];
   int offset = 0;
@@ -304,9 +313,9 @@ DecryptPageChaCha20Cipher(void* cipher, int page, unsigned char* data, int len, 
   {
     int allzero = 0;
     /* Decrypt and verify MAC */
-    memset(otk, 0, 64);
+    memset(otk, 0, OTK_LEN_CHACHA20);
     counter = LOAD32_LE(data + n + PAGE_NONCE_LEN_CHACHA20 - 4) ^ page;
-    chacha20_xor(otk, 64, chacha20Cipher->m_key, data + n, counter);
+    chacha20_xor(otk, OTK_LEN_CHACHA20, chacha20Cipher->m_key, data + n, counter);
 
     /* Determine MAC and decrypt */
     allzero = chacha20_ismemset(data, 0, n);
@@ -320,7 +329,7 @@ DecryptPageChaCha20Cipher(void* cipher, int page, unsigned char* data, int len, 
       {
         SQLITE3MC_DEBUG_LOG("decrypt: codec=%p page=%d\n", chacha20Cipher, page);
         SQLITE3MC_DEBUG_HEX("decrypt key:", chacha20Cipher->m_key, 32);
-        SQLITE3MC_DEBUG_HEX("decrypt otk:", otk, 64);
+        SQLITE3MC_DEBUG_HEX("decrypt otk:", otk, OTK_LEN_CHACHA20);
         SQLITE3MC_DEBUG_HEX("decrypt data+00:", data, 16);
         SQLITE3MC_DEBUG_HEX("decrypt data+24:", data + 24, 16);
         SQLITE3MC_DEBUG_HEX("decrypt data+n:", data + n, 16);
@@ -339,10 +348,10 @@ DecryptPageChaCha20Cipher(void* cipher, int page, unsigned char* data, int len, 
   {
     /* Decrypt only */
     uint8_t nonce[PAGE_NONCE_LEN_CHACHA20];
-    memset(otk, 0, 64);
+    memset(otk, 0, OTK_LEN_CHACHA20);
     sqlite3mcGenerateInitialVector(page, nonce);
     counter = LOAD32_LE(&nonce[PAGE_NONCE_LEN_CHACHA20 - 4]) ^ page;
-    chacha20_xor(otk, 64, chacha20Cipher->m_key, nonce, counter);
+    chacha20_xor(otk, OTK_LEN_CHACHA20, chacha20Cipher->m_key, nonce, counter);
 
     /* Decrypt */
     chacha20_xor(data + offset, n - offset, otk + 32, nonce, counter + 1);
@@ -351,6 +360,9 @@ DecryptPageChaCha20Cipher(void* cipher, int page, unsigned char* data, int len, 
       memcpy(data, SQLITE_FILE_HEADER, 16);
     }
   }
+
+  /* Zero out otk array */
+  sqlite3mcSecureZeroMemory(otk, OTK_LEN_CHACHA20);
 
   return rc;
 }

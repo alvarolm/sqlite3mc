@@ -18,15 +18,14 @@ Tracked in [`VERSION`](VERSION):
 
 | Component             | Pinned to     |
 |-----------------------|---------------|
-| local hybrid          | `0.2.0`       |
-| `mattn/go-sqlite3`    | `v1.14.42`    |
-| SQLite3MultipleCiphers| `v2.3.3`      |
-| underlying SQLite     | `3.53.0`      |
+| local hybrid          | `0.3.0`       |
+| `mattn/go-sqlite3`    | `v1.14.49`    |
+| SQLite3MultipleCiphers| `v2.5.0`      |
+| underlying SQLite     | `3.53.4`      |
 
-mattn `v1.14.42` was originally cut against SQLite `3.51.3`, but every C symbol
-its bindings call is unchanged in `3.53.0`, so the skew is benign — the
-bindings link and run cleanly against the SQLite amalgamation that SQLite3MC
-ships.
+mattn `v1.14.49` was cut against SQLite `3.53.4` — the same version the
+SQLite3MC `v2.5.0` amalgamation ships — so there is no version skew between
+the bindings and the C sources.
 
 ## Install
 
@@ -41,7 +40,7 @@ Or, if you already import `github.com/mattn/go-sqlite3` and don't want to rewrit
 keep the imports and add a `replace` in your `go.mod`:
 
 ```go
-replace github.com/mattn/go-sqlite3 => github.com/alvarolm/sqlite3mc/sqlite3 v0.2.0
+replace github.com/mattn/go-sqlite3 => github.com/alvarolm/sqlite3mc/sqlite3 v0.3.0
 // or, for a sibling clone:
 // replace github.com/mattn/go-sqlite3 => ../sqlite3mc/sqlite3
 ```
