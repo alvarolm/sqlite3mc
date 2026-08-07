@@ -44,8 +44,8 @@
  }
  
  // SQLiteConn implements driver.Conn.
-@@ -1572,6 +1594,17 @@
- 		return nil, errors.New("sqlite succeeded without returning a database")
+@@ -1609,6 +1631,17 @@
+ 		return nil, err
  	}
  
 +	// PreConnectHook runs BEFORE any internal PRAGMA so an encryption codec

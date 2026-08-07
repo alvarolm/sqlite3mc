@@ -8,9 +8,11 @@ A drop-in replacement for [`mattn/go-sqlite3`](https://github.com/mattn/go-sqlit
 SQLite — gives you `PRAGMA key='...'` page-level encryption (ChaCha20-Poly1305 by default)
 without changing any application code beyond the driver registration.
 
-The Go bindings, exported types, and CFLAGS layout are mattn's. The C amalgamation under
-`sqlite3/csrc/` is SQLite3MC's. The only Go-level change is one extra hook (`PreConnectHook`)
-on `SQLiteDriver` so a key can be installed before SQLite touches page 1 of the database file.
+The Go bindings, exported types, and CFLAGS layout are mattn's, pulled from the
+[`alvarolm/go-sqlite3`](https://github.com/alvarolm/go-sqlite3) fork (mattn `master` plus a
+`SQLiteStmt.ColumnCount` method). The C amalgamation under `sqlite3/csrc/` is SQLite3MC's.
+The only local Go-level change is one extra hook (`PreConnectHook`) on `SQLiteDriver` so a
+key can be installed before SQLite touches page 1 of the database file.
 
 ## Versions
 
@@ -18,14 +20,17 @@ Tracked in [`VERSION`](VERSION):
 
 | Component             | Pinned to     |
 |-----------------------|---------------|
-| local hybrid          | `0.3.1`       |
-| `mattn/go-sqlite3`    | `v1.14.49`    |
+| local hybrid          | `0.4.0`       |
+| [`alvarolm/go-sqlite3`](https://github.com/alvarolm/go-sqlite3) (mattn fork) | `master` @ [`9edfff4e`](https://github.com/alvarolm/go-sqlite3/commit/9edfff4e9ff332f3bd378d34c238ca4f35217c03), based on mattn `v1.14.49` |
 | SQLite3MultipleCiphers| `v2.5.0`      |
 | underlying SQLite     | `3.53.4`      |
 
-mattn `v1.14.49` was cut against SQLite `3.53.4` — the same version the
-SQLite3MC `v2.5.0` amalgamation ships — so there is no version skew between
-the bindings and the C sources.
+The exact fork commit and its mattn base tag are stamped by `update.sh` into
+`VERSION` as `mattn-commit=` and `mattn-base=` (the base tag is carried forward
+between runs; set it with `--mattn-base` when it changes). mattn `v1.14.49` was
+cut against SQLite `3.53.4` — the same version the SQLite3MC `v2.5.0`
+amalgamation ships — so there is no version skew between the bindings and the
+C sources.
 
 ## Install
 
@@ -40,7 +45,7 @@ Or, if you already import `github.com/mattn/go-sqlite3` and don't want to rewrit
 keep the imports and add a `replace` in your `go.mod`:
 
 ```go
-replace github.com/mattn/go-sqlite3 => github.com/alvarolm/sqlite3mc/sqlite3 v0.3.1
+replace github.com/mattn/go-sqlite3 => github.com/alvarolm/sqlite3mc/sqlite3 v0.4.0
 // or, for a sibling clone:
 // replace github.com/mattn/go-sqlite3 => ../sqlite3mc/sqlite3
 ```

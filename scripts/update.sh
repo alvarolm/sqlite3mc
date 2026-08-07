@@ -8,13 +8,13 @@
 #   scripts/update.sh [flags]
 #
 # Flags:
-#   --mattn TAG       mattn/go-sqlite3 git tag    (default: from VERSION)
+#   --mattn TAG       go-sqlite3 git tag/branch   (default: from VERSION)
+#   --mattn-base TAG  mattn tag the fork ref is based on, recorded in VERSION
+#                                                 (default: from VERSION)
 #   --mc TAG          SQLite3MultipleCiphers tag  (default: from VERSION)
 #   --version VER     local hybrid version stamp  (default: keep current; "0.1.0" if absent)
-#   --mattn-repo SRC  local git path or URL       (default: https://github.com/mattn/go-sqlite3.git)
-#   --mc-repo SRC     local git path or URL       (default: /home/alvarolm/SQLite3MultipleCiphers
-#                                                  if it's a git repo, else
-#                                                  https://github.com/utelle/SQLite3MultipleCiphers.git)
+#   --mattn-repo SRC  local git path or URL       (default: https://github.com/alvarolm/go-sqlite3.git)
+#   --mc-repo SRC     local git path or URL       (default: https://github.com/utelle/SQLite3MultipleCiphers.git)
 
 set -euo pipefail
 
@@ -34,17 +34,18 @@ read_version_field() {
 }
 
 MATTN_VER=""
+MATTN_BASE=""
 MC_VER=""
 LOCAL_VER=""
-MATTN_REPO_DEFAULT="https://github.com/mattn/go-sqlite3.git"
-MC_REPO_DEFAULT_LOCAL="/home/alvarolm/SQLite3MultipleCiphers"
-MC_REPO_DEFAULT_URL="https://github.com/utelle/SQLite3MultipleCiphers.git"
+MATTN_REPO_DEFAULT="https://github.com/alvarolm/go-sqlite3.git"
+MC_REPO_DEFAULT="https://github.com/utelle/SQLite3MultipleCiphers.git"
 MATTN_REPO=""
 MC_REPO=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --mattn)      MATTN_VER="$2";  shift 2 ;;
+        --mattn-base) MATTN_BASE="$2"; shift 2 ;;
         --mc)         MC_VER="$2";     shift 2 ;;
         --version)    LOCAL_VER="$2";  shift 2 ;;
         --mattn-repo) MATTN_REPO="$2"; shift 2 ;;
@@ -55,19 +56,14 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$MATTN_VER" ] || MATTN_VER="$(read_version_field mattn)"
+[ -n "$MATTN_BASE" ] || MATTN_BASE="$(read_version_field mattn-base)"
 [ -n "$MC_VER"    ] || MC_VER="$(read_version_field mc)"
 [ -n "$LOCAL_VER" ] || LOCAL_VER="$(read_version_field local)"
 [ -n "$LOCAL_VER" ] || LOCAL_VER="0.1.0"
 [ -n "$MATTN_VER" ] || die "--mattn TAG required (no VERSION file to read default from)"
 [ -n "$MC_VER"    ] || die "--mc TAG required (no VERSION file to read default from)"
 [ -n "$MATTN_REPO" ] || MATTN_REPO="$MATTN_REPO_DEFAULT"
-if [ -z "$MC_REPO" ]; then
-    if [ -d "$MC_REPO_DEFAULT_LOCAL/.git" ]; then
-        MC_REPO="$MC_REPO_DEFAULT_LOCAL"
-    else
-        MC_REPO="$MC_REPO_DEFAULT_URL"
-    fi
-fi
+[ -n "$MC_REPO" ] || MC_REPO="$MC_REPO_DEFAULT"
 
 [ -f "$PATCH" ] || die "patch not found: $PATCH"
 
@@ -75,6 +71,7 @@ WORKDIR="$(mktemp -d -t update-sqlite3mc.XXXXXX)"
 trap 'rm -rf "$WORKDIR"' EXIT
 
 # stage_repo SRC TAG OUT_DIR -- copies a checkout (no .git) of TAG into OUT_DIR
+# and records the resolved commit sha in OUT_DIR/commit.
 stage_repo() {
     local src="$1" tag="$2" out="$3"
     mkdir -p "$out/extracted"
@@ -84,6 +81,7 @@ stage_repo() {
             git -c advice.detachedHead=false clone --quiet --depth 1 \
                 --branch "$tag" "$src" "$out/repo" \
                 || die "git clone $src @ $tag failed"
+            git -C "$out/repo" rev-parse HEAD > "$out/commit"
             (cd "$out/repo" && git archive HEAD) | tar -x -C "$out/extracted"
             ;;
         *)
@@ -91,6 +89,7 @@ stage_repo() {
             git -C "$src" rev-parse --verify "$tag^{commit}" >/dev/null 2>&1 \
                 || die "tag '$tag' not found in $src (try: git -C $src fetch --tags)"
             log "archiving $src @ $tag"
+            git -C "$src" rev-parse "$tag^{commit}" > "$out/commit"
             git -C "$src" archive "$tag" | tar -x -C "$out/extracted"
             ;;
     esac
@@ -122,6 +121,7 @@ rsync -a \
     --exclude='README.md' \
     --exclude='_example/' \
     --exclude='.git/' \
+    --exclude='.github/' \
     --exclude='go.mod' \
     --exclude='go.sum' \
     --exclude='sqlite3-binding.c' \
@@ -216,10 +216,13 @@ EOF
 #    header so it can never drift from the actual amalgamation.
 SQLITE_VER="$(awk -F'"' '/^#define SQLITE_VERSION /{print $2; exit}' "$TARGET/sqlite3.h")"
 [ -n "$SQLITE_VER" ] || die "could not parse SQLITE_VERSION from $TARGET/sqlite3.h"
+MATTN_COMMIT="$(cat "$WORKDIR/mattn/commit")"
 BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 cat > "$VERSION_FILE" <<EOF
 local=$LOCAL_VER
 mattn=$MATTN_VER
+mattn-commit=$MATTN_COMMIT
+mattn-base=$MATTN_BASE
 mc=$MC_VER
 sqlite=$SQLITE_VER
 built=$BUILT_AT
@@ -229,5 +232,5 @@ EOF
 log "go build ./... (in $TARGET)"
 (cd "$TARGET" && go build ./...) || die "go build failed after rebuild"
 
-log "done: local=$LOCAL_VER mattn=$MATTN_VER mc=$MC_VER sqlite=$SQLITE_VER"
+log "done: local=$LOCAL_VER mattn=$MATTN_VER@${MATTN_COMMIT:0:8} (base $MATTN_BASE) mc=$MC_VER sqlite=$SQLITE_VER"
 log "to publish: git add -A && git commit -m 'v$LOCAL_VER (mattn $MATTN_VER, mc $MC_VER)' && git tag v$LOCAL_VER && git tag sqlite3/v$LOCAL_VER"

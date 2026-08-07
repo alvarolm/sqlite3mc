@@ -17,7 +17,7 @@ die() { echo "[regen-patch] error: $*" >&2; exit 1; }
 MATTN_VER="$(awk -F= '$1=="mattn"{print $2; exit}' "$VERSION_FILE")"
 [ -n "$MATTN_VER" ] || die "no mattn= field in $VERSION_FILE"
 
-MATTN_REPO_DEFAULT="https://github.com/mattn/go-sqlite3.git"
+MATTN_REPO_DEFAULT="https://github.com/alvarolm/go-sqlite3.git"
 MATTN_REPO="${1:-$MATTN_REPO_DEFAULT}"
 
 WORKDIR="$(mktemp -d -t regen-patch.XXXXXX)"
