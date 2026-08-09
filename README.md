@@ -20,8 +20,8 @@ Tracked in [`VERSION`](VERSION):
 
 | Component             | Pinned to     |
 |-----------------------|---------------|
-| local hybrid          | `0.4.0`       |
-| [`alvarolm/go-sqlite3`](https://github.com/alvarolm/go-sqlite3) (mattn fork) | `master` @ [`9edfff4e`](https://github.com/alvarolm/go-sqlite3/commit/9edfff4e9ff332f3bd378d34c238ca4f35217c03), based on mattn `v1.14.49` |
+| local hybrid          | `0.4.1`       |
+| [`alvarolm/go-sqlite3`](https://github.com/alvarolm/go-sqlite3) (mattn fork) | `master` @ [`9edfff4e`](https://github.com/alvarolm/go-sqlite3/commit/4bc70dd05df2484df6a722c98bab3e72c3c622ef), based on mattn `v1.14.49` |
 | SQLite3MultipleCiphers| `v2.5.0`      |
 | underlying SQLite     | `3.53.4`      |
 

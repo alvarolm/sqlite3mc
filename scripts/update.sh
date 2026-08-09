@@ -233,4 +233,4 @@ log "go build ./... (in $TARGET)"
 (cd "$TARGET" && go build ./...) || die "go build failed after rebuild"
 
 log "done: local=$LOCAL_VER mattn=$MATTN_VER@${MATTN_COMMIT:0:8} (base $MATTN_BASE) mc=$MC_VER sqlite=$SQLITE_VER"
-log "to publish: git add -A && git commit -m 'v$LOCAL_VER (mattn $MATTN_VER, mc $MC_VER)' && git tag v$LOCAL_VER && git tag sqlite3/v$LOCAL_VER"
+log "to publish: git add -A && git commit -m 'v$LOCAL_VER (mattn $MATTN_VER, mc $MC_VER)' && git tag v$LOCAL_VER"
