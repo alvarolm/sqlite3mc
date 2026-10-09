@@ -939,6 +939,18 @@ func (c *SQLiteConn) AutoCommit() bool {
 	return int(C.sqlite3_get_autocommit(c.db)) != 0
 }
 
+// Interrupt makes the statement running on c, if any, fail with
+// SQLITE_INTERRUPT; see sqlite3_interrupt. Unlike a context, it costs nothing
+// until it is called. It may be called from any goroutine, while c runs a
+// statement, and after c is closed, when it does nothing.
+func (c *SQLiteConn) Interrupt() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.db != nil {
+		C.sqlite3_interrupt(c.db)
+	}
+}
+
 func (c *SQLiteConn) lastError() error {
 	return lastError(c.db)
 }
