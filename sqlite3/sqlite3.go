@@ -28,6 +28,7 @@ package sqlite3
 #cgo CFLAGS: -DSQLITE_ENABLE_COLUMN_METADATA=1
 #cgo CFLAGS: -DSQLITE_ENABLE_SESSION
 #cgo CFLAGS: -DSQLITE_ENABLE_PREUPDATE_HOOK
+#cgo linux CFLAGS: -DHAVE_FDATASYNC=1
 #cgo CFLAGS: -DHAVE_STDINT_H=1
 #cgo CFLAGS: -Wno-deprecated-declarations
 #cgo CFLAGS: -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable
