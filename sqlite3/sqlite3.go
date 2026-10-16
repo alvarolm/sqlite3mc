@@ -2093,6 +2093,19 @@ func (c *SQLiteConn) prepareWithCache(ctx context.Context, query string) (driver
 	return ss, nil
 }
 
+// PrepareCached is Prepare through the connection's statement cache
+// (_stmt_cache_size), as Exec and Query use it: it takes a statement for
+// query from the cache, or prepares one, and Close returns the statement to
+// the cache instead of finalizing it. Only a query holding a single
+// statement is cached. Without the cache it is Prepare.
+func (c *SQLiteConn) PrepareCached(ctx context.Context, query string) (*SQLiteStmt, error) {
+	stmt, err := c.prepareWithCache(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	return stmt.(*SQLiteStmt), nil
+}
+
 // Run-Time Limit Categories.
 // See: http://www.sqlite.org/c3ref/c_limit_attached.html
 const (
