@@ -9,10 +9,11 @@ SQLite — gives you `PRAGMA key='...'` page-level encryption (ChaCha20-Poly1305
 without changing any application code beyond the driver registration.
 
 The Go bindings, exported types, and CFLAGS layout are mattn's, pulled from the
-[`alvarolm/go-sqlite3`](https://github.com/alvarolm/go-sqlite3) fork (mattn `master` plus a
-`SQLiteStmt.ColumnCount` method). The C amalgamation under `sqlite3/csrc/` is SQLite3MC's.
-The only local Go-level change is one extra hook (`PreConnectHook`) on `SQLiteDriver` so a
-key can be installed before SQLite touches page 1 of the database file.
+[`alvarolm/go-sqlite3`](https://github.com/alvarolm/go-sqlite3) fork: mattn `master` plus
+`SQLiteStmt.ColumnCount`, `SQLiteStmt.Tail`, `SQLiteConn.Interrupt`,
+`SQLiteConn.PrepareCached`, and a `PreConnectHook` on `SQLiteDriver` so a key can be
+installed before SQLite touches page 1 of the database file. The C amalgamation under
+`sqlite3/csrc/` is SQLite3MC's. The only local change is cgo build flags in `sqlite3.go`.
 
 ## Versions
 
@@ -20,14 +21,14 @@ Tracked in [`VERSION`](VERSION):
 
 | Component             | Pinned to     |
 |-----------------------|---------------|
-| local hybrid          | `0.4.1`       |
-| [`alvarolm/go-sqlite3`](https://github.com/alvarolm/go-sqlite3) (mattn fork) | `master` @ [`9edfff4e`](https://github.com/alvarolm/go-sqlite3/commit/4bc70dd05df2484df6a722c98bab3e72c3c622ef), based on mattn `v1.14.49` |
+| local hybrid          | `0.5.0`       |
+| [`alvarolm/go-sqlite3`](https://github.com/alvarolm/go-sqlite3) (mattn fork) | `master` @ [`62cbd487`](https://github.com/alvarolm/go-sqlite3/commit/62cbd487fe0eabce89afb3a9d9550106b6fce2a0), based on mattn `v1.14.52` |
 | SQLite3MultipleCiphers| `v2.5.0`      |
 | underlying SQLite     | `3.53.4`      |
 
 The exact fork commit and its mattn base tag are stamped by `update.sh` into
 `VERSION` as `mattn-commit=` and `mattn-base=` (the base tag is carried forward
-between runs; set it with `--mattn-base` when it changes). mattn `v1.14.49` was
+between runs; set it with `--mattn-base` when it changes). mattn `v1.14.52` was
 cut against SQLite `3.53.4` — the same version the SQLite3MC `v2.5.0`
 amalgamation ships — so there is no version skew between the bindings and the
 C sources.
@@ -45,7 +46,7 @@ Or, if you already import `github.com/mattn/go-sqlite3` and don't want to rewrit
 keep the imports and add a `replace` in your `go.mod`:
 
 ```go
-replace github.com/mattn/go-sqlite3 => github.com/alvarolm/sqlite3mc/sqlite3 v0.4.0
+replace github.com/mattn/go-sqlite3 => github.com/alvarolm/sqlite3mc/sqlite3 v0.5.0
 // or, for a sibling clone:
 // replace github.com/mattn/go-sqlite3 => ../sqlite3mc/sqlite3
 ```
@@ -164,7 +165,7 @@ scripts/update.sh \
 The script smoke-builds (`go build ./...`) before declaring success and prints the
 `git add / commit / tag` line for the new version.
 
-After editing `sqlite3.go` directly (e.g. to add another hook),
+Go-level changes belong in the fork. After editing the cgo flags in `sqlite3.go`,
 [`scripts/regen-patch.sh`](scripts/regen-patch.sh) regenerates
 `patches/sqlite3.go.patch` against the pinned mattn version so the change survives
 future `update.sh` runs.
@@ -176,7 +177,7 @@ sqlite3mc/
 ├── README.md
 ├── LICENSE                       # MIT, Yasuhiro Matsumoto et al. (mattn)
 ├── VERSION                       # local + upstream version pins
-├── patches/sqlite3.go.patch      # local cgo CFLAGS + PreConnectHook
+├── patches/sqlite3.go.patch      # local cgo CFLAGS
 ├── scripts/
 │   ├── update.sh                 # rebuild from chosen upstream tags
 │   └── regen-patch.sh            # rebuild patches/sqlite3.go.patch after editing
@@ -198,7 +199,7 @@ and licenses:
 - SQLite3MultipleCiphers — MIT, Ulrich Telle. License header is in
   `sqlite3/sqlite3-binding.c` and the SQLite3MC source files under `sqlite3/csrc/`.
 
-The local glue (the `PreConnectHook` patch and the build scripts) is also MIT.
+The local glue (the cgo flags patch and the build scripts) is also MIT.
 
 ## Credits
 

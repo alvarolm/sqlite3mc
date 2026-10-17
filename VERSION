@@ -1,7 +1,7 @@
-local=0.4.1
+local=0.5.0
 mattn=master
-mattn-commit=4bc70dd05df2484df6a722c98bab3e72c3c622ef
-mattn-base=v1.14.49
+mattn-commit=62cbd487fe0eabce89afb3a9d9550106b6fce2a0
+mattn-base=v1.14.52
 mc=v2.5.0
 sqlite=3.53.4
-built=2026-08-09T19:14:40Z
+built=2026-10-17T03:58:39Z
