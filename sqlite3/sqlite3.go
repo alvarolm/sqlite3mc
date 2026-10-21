@@ -2642,6 +2642,13 @@ func (s *SQLiteStmt) Query(args []driver.Value) (driver.Rows, error) {
 }
 
 func (s *SQLiteStmt) query(ctx context.Context, args []driver.NamedValue) (driver.Rows, error) {
+	if s.s == nil {
+		// Nothing was prepared: the SQL held no statement (see QueryContext).
+		if s.cls {
+			s.Close()
+		}
+		return &SQLiteRows{ctx: ctx}, nil
+	}
 	rows := &SQLiteRows{
 		s:           s,
 		cls:         s.cls,
@@ -2822,6 +2829,10 @@ func (s *SQLiteStmt) exec(ctx context.Context, args []driver.NamedValue) (driver
 }
 
 func (s *SQLiteStmt) execSync(args []driver.NamedValue) (driver.Result, error) {
+	if s.s == nil {
+		// Nothing was prepared: the SQL held no statement (see ExecContext).
+		return &SQLiteResult{0, 0}, nil
+	}
 	if err := s.bind(args); err != nil {
 		C._sqlite3_reset_clear(s.s)
 		return nil, err

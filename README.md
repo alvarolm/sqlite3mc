@@ -21,8 +21,8 @@ Tracked in [`VERSION`](VERSION):
 
 | Component             | Pinned to     |
 |-----------------------|---------------|
-| local hybrid          | `0.5.0`       |
-| [`alvarolm/go-sqlite3`](https://github.com/alvarolm/go-sqlite3) (mattn fork) | `master` @ [`62cbd487`](https://github.com/alvarolm/go-sqlite3/commit/62cbd487fe0eabce89afb3a9d9550106b6fce2a0), based on mattn `v1.14.52` |
+| local hybrid          | `0.5.1`       |
+| [`alvarolm/go-sqlite3`](https://github.com/alvarolm/go-sqlite3) (mattn fork) | `master` @ [`ac3bed56`](https://github.com/alvarolm/go-sqlite3/commit/ac3bed563c89badf0ad8526dc5c87b7f51af90d9), based on mattn `v1.14.52` |
 | SQLite3MultipleCiphers| `v2.5.0`      |
 | underlying SQLite     | `3.53.4`      |
 
@@ -46,7 +46,7 @@ Or, if you already import `github.com/mattn/go-sqlite3` and don't want to rewrit
 keep the imports and add a `replace` in your `go.mod`:
 
 ```go
-replace github.com/mattn/go-sqlite3 => github.com/alvarolm/sqlite3mc/sqlite3 v0.5.0
+replace github.com/mattn/go-sqlite3 => github.com/alvarolm/sqlite3mc/sqlite3 v0.5.1
 // or, for a sibling clone:
 // replace github.com/mattn/go-sqlite3 => ../sqlite3mc/sqlite3
 ```
