@@ -108,7 +108,7 @@ func main() {
 ```
 
 The active cipher is whatever SQLite3MC's compile-time default is — currently
-ChaCha20-Poly1305 (256-bit key, per-page 128-bit nonce + Poly1305 tag, PBKDF2-SHA1 64007
+ChaCha20-Poly1305 (256-bit key, per-page 128-bit nonce + Poly1305 tag, PBKDF2-SHA256 64007
 iterations). To pick a different cipher (e.g. AEGIS-256X4 — 256-bit key & nonce, AES-NI
 fast path), set it via the **DSN URI** so SQLite3MC reads it before any page is touched:
 
@@ -127,7 +127,7 @@ existing encrypted file — the URI form sidesteps it.
 To pass a raw key instead of a passphrase, prefix with `raw:` or use SQLCipher's hex form:
 
 ```sql
-PRAGMA key = "raw:0123456789abcdef...";   -- 32 hex chars per byte
+PRAGMA key = "raw:0123456789abcdef...";   -- 2 hex chars per byte (64 for a 256-bit key)
 PRAGMA key = "x'0123456789abcdef...'";    -- SQLCipher-compatible
 ```
 
